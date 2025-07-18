@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import { TASKS_API } from '@/lib/api';
 
 type Task = {
   name: string;
@@ -14,12 +15,6 @@ export default function EditTask() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
 
-  const API = `https://a9f809492570.ngrok-free.app/api/tasks/${id}`;
-  const hdr = {
-    'ngrok-skip-browser-warning': 'true',
-    'Content-Type': 'application/json',
-  };
-
   const [task, setTask] = useState<Task>({
     name: '',
     deadline: '',
@@ -31,12 +26,23 @@ export default function EditTask() {
   const [error, setError] = useState<string | null>(null);
   const [formErrors, setFormErrors] = useState<{ name?: string; deadline?: string }>({});
 
+  const getHeaders = (): HeadersInit => {
+    const token = localStorage.getItem('token');
+    return {
+      'ngrok-skip-browser-warning': 'true',
+      'Content-Type': 'application/json',
+      ...(token && { Authorization: `Bearer ${token}` }),
+    };
+  };
+
   useEffect(() => {
-    const getTask = async () => {
+    const fetchTask = async () => {
       try {
-        const res = await fetch(API, { headers: hdr });
+        const res = await fetch(`${TASKS_API}/${id}`, { headers: getHeaders() });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
+        const json = await res.json();
+        const data = json.data;
+
         setTask({
           name: data.name,
           deadline: data.deadline?.slice(0, 10) ?? '',
@@ -49,13 +55,14 @@ export default function EditTask() {
         setLoading(false);
       }
     };
-    getTask();
-  }, [API]);
+
+    if (id) fetchTask();
+  }, [id]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormErrors({});
-    let errors: { name?: string; deadline?: string } = {};
+    const errors: { name?: string; deadline?: string } = {};
 
     if (!task.name.trim()) errors.name = 'Nama tugas wajib diisi';
     if (!task.deadline) errors.deadline = 'Tanggal deadline wajib diisi';
@@ -66,13 +73,20 @@ export default function EditTask() {
     }
 
     try {
-      const res = await fetch(API, {
+      const res = await fetch(`${TASKS_API}/${id}`, {
         method: 'PUT',
-        headers: hdr,
-        body: JSON.stringify(task),
+        headers: getHeaders(),
+        body: JSON.stringify({
+          ...task,
+          is_done: task.is_done ? 1 : 0,
+        }),
       });
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.message || `HTTP ${res.status}`);
+      }
+
       router.push('/userserver');
     } catch (e: any) {
       setError(e.message);
@@ -87,21 +101,18 @@ export default function EditTask() {
       <h1 className="text-3xl font-bold">Edit Tugas #{id}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        {/* Nama Tugas */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Nama Tugas</label>
           <input
             className={`w-full p-2 border rounded ${formErrors.name ? 'border-red-500' : ''}`}
             value={task.name}
             onChange={(e) => setTask({ ...task, name: e.target.value })}
-            required
           />
           {formErrors.name && (
             <p className="text-red-600 text-sm mt-1">{formErrors.name}</p>
           )}
         </div>
 
-        {/* Deadline */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Deadline</label>
           <input
@@ -109,15 +120,12 @@ export default function EditTask() {
             className={`w-full p-2 border rounded ${formErrors.deadline ? 'border-red-500' : ''}`}
             value={task.deadline}
             onChange={(e) => setTask({ ...task, deadline: e.target.value })}
-            min="2024-01-01"
-            max="2030-12-31"
           />
           {formErrors.deadline && (
             <p className="text-red-600 text-sm mt-1">{formErrors.deadline}</p>
           )}
         </div>
 
-        {/* Prioritas */}
         <div>
           <label className="block text-sm font-medium text-gray-700">Prioritas</label>
           <select
@@ -133,7 +141,18 @@ export default function EditTask() {
           </select>
         </div>
 
-        {/* Tombol */}
+        <div>
+          <label className="inline-flex items-center space-x-2">
+            <input
+              type="checkbox"
+              checked={task.is_done}
+              onChange={(e) => setTask({ ...task, is_done: e.target.checked })}
+              className="rounded"
+            />
+            <span className="text-sm">Tugas Selesai</span>
+          </label>
+        </div>
+
         <div className="flex gap-3">
           <button
             type="button"
