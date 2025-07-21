@@ -17,7 +17,8 @@ type Task = {
 function logoutAndRedirect() {
   localStorage.removeItem('token');
   localStorage.removeItem('user');
-  window.location.href = '/login';
+  localStorage.removeItem('expires_at');
+  window.location.href = '/expired';
 }
 
 function checkTokenOrLogout(): boolean {
@@ -78,7 +79,7 @@ useEffect(() => {
       }
     } else {
       setCountdown(null);
-      hasAlertedRef.current = false; // reset kalau token masih aman
+      hasAlertedRef.current = false; 
     }
   }, 1000);
 
@@ -100,38 +101,33 @@ useEffect(() => {
     return `${days[d.getDay()]}, ${d.getDate()} ${months[d.getMonth()]} ${d.getFullYear()}`;
   };
 
-  const fetchTasks = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      if (!checkTokenOrLogout()) return;
+const fetchTasks = async () => {
+  setLoading(true);
+  setError(null);
+  try {
+    if (!checkTokenOrLogout()) return;
 
-      const res = await fetch(TASKS_API, { headers: getHeaders() });
+    const res = await fetch(TASKS_API, { headers: getHeaders() });
 
-      if (res.status === 401 || res.status === 403) {
-        logoutAndRedirect();
-        return;
-      }
-
-      if (!res.ok) {
-        const errText = await res.text();
-        throw new Error(`HTTP ${res.status}: ${errText}`);
-      }
-
-      if (!checkToken()) {
-  alert('Sesi kamu telah habis. Silakan login ulang.');
-  logoutAndRedirect();
-  return;
-}
-
-      const json = await res.json();
-      setTasks(json.data.map((t: any) => ({ ...t, is_done: Boolean(t.is_done) })));
-    } catch (e: any) {
-      setError(e.message);
-    } finally {
-      setLoading(false);
+    if (res.status === 401 || res.status === 403 || res.status === 500) {
+      logoutAndRedirect();
+      return;
     }
-  };
+
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`HTTP ${res.status}: ${errText}`);
+    }
+
+    const json = await res.json();
+    setTasks(json.data.map((t: any) => ({ ...t, is_done: Boolean(t.is_done) })));
+  } catch (e: any) {
+    setError(e.message);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   useEffect(() => {
     fetchTasks();

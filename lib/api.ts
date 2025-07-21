@@ -1,6 +1,6 @@
 
 
-const BASE_API = 'https://1fae5d16c5ca.ngrok-free.app/api';
+const BASE_API = '/api';
 
 export const TASKS_API = `${BASE_API}/tasks`;
 export const TASKS_API_ID = `${BASE_API}/tasks/:id`;
